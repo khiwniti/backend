@@ -1,0 +1,16 @@
+{
+  "routers": {
+    "langflow": {
+      "disableAuth": false
+    },
+    "workflows": {
+      "disableAuth": false
+    },
+    "data": {
+      "disableAuth": false
+    },
+    "users": {
+      "disableAuth": true
+    }
+  }
+}

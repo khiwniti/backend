@@ -1,0 +1,46 @@
+name = "bitebase-api"
+compatibility_date = "2023-05-15"
+compatibility_flags = ["python_workers"]
+workers_dev = true
+
+[build]
+command = "pip install -r requirements.txt"
+
+[env.production]
+vars = {
+  OLLAMA_BASE_URL = "https://your-ollama-instance-url:11434",
+  LANGFLOW_ENABLED = "false",
+  CLOUDFLARE_DEPLOYMENT = "true"
+}
+
+# D1 Database configuration
+[[d1_databases]]
+binding = "DB"
+database_name = "bitebase_db"
+database_id = "a2205a62-06a9-4992-b145-ee23330e15ef"
+
+# KV namespaces for caching and high-speed access
+[[kv_namespaces]]
+binding = "FLOW_KV"
+id = "adb94eb792f44ee48a04386cbc06e4dc"
+
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "5268de1763e54a938cba7fcd0cae927e"
+
+# Durable Objects for real-time data
+[[durable_objects.bindings]]
+name = "BITEBASE_DURABLE_OBJECT"
+class_name = "BiteBaseDurableObject"
+
+[[migrations]]
+tag = "v1"
+entries = [
+  { sql = "CREATE TABLE IF NOT EXISTS restaurants (id TEXT PRIMARY KEY, name TEXT, location TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)" },
+  { sql = "CREATE TABLE IF NOT EXISTS inventory (id TEXT PRIMARY KEY, restaurant_id TEXT, name TEXT, current_stock REAL, unit TEXT, min_stock_level REAL, max_stock_level REAL, shelf_life INTEGER, storage_conditions TEXT, FOREIGN KEY (restaurant_id) REFERENCES restaurants(id))" },
+  { sql = "CREATE TABLE IF NOT EXISTS suppliers (id TEXT PRIMARY KEY, name TEXT, lead_time INTEGER, reliability_score REAL, cost_per_unit REAL, minimum_order_quantity REAL, delivery_days TEXT)" },
+  { sql = "CREATE TABLE IF NOT EXISTS sales_data (id TEXT PRIMARY KEY, restaurant_id TEXT, date DATE, items_sold INTEGER, revenue REAL, FOREIGN KEY (restaurant_id) REFERENCES restaurants(id))" },
+  { sql = "CREATE TABLE IF NOT EXISTS menu_items (id TEXT PRIMARY KEY, restaurant_id TEXT, name TEXT, price REAL, ingredients JSON, portions INTEGER, FOREIGN KEY (restaurant_id) REFERENCES restaurants(id))" },
+  { sql = "CREATE TABLE IF NOT EXISTS customer_feedback (id TEXT PRIMARY KEY, restaurant_id TEXT, date DATE, review_text TEXT, rating INTEGER, sentiment_score REAL, topics JSON, keywords JSON, FOREIGN KEY (restaurant_id) REFERENCES restaurants(id))" },
+  { sql = "CREATE TABLE IF NOT EXISTS waste_records (id TEXT PRIMARY KEY, restaurant_id TEXT, ingredient_id TEXT, waste_quantity REAL, waste_reason TEXT, waste_date DATE, FOREIGN KEY (restaurant_id) REFERENCES restaurants(id), FOREIGN KEY (ingredient_id) REFERENCES inventory(id))" }
+]

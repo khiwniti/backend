@@ -1,0 +1,120 @@
+{
+    "name": "foot_traffic_analysis",
+    "description": "Analyzes foot traffic patterns and provides insights",
+    "version": "1.0.0",
+    "steps": [
+        {
+            "name": "data_preparation",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "filter",
+                        "field": "timeframe",
+                        "operation": "equals",
+                        "value": "{timeframe}"
+                    },
+                    {
+                        "type": "aggregate",
+                        "field": "count",
+                        "operation": "sum",
+                        "group_by": ["dayOfWeek"]
+                    },
+                    {
+                        "type": "aggregate",
+                        "field": "count",
+                        "operation": "sum",
+                        "group_by": ["hour"]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "pattern_analysis",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "sort",
+                        "field": "count",
+                        "operation": "desc"
+                    },
+                    {
+                        "type": "statistics",
+                        "fields": ["count"],
+                        "operations": ["mean", "median", "std", "min", "max"]
+                    },
+                    {
+                        "type": "trend_analysis",
+                        "field": "count",
+                        "window": 7
+                    }
+                ]
+            }
+        },
+        {
+            "name": "insight_generation",
+            "type": "llm",
+            "config": {
+                "model": "gpt-4",
+                "temperature": 0.5,
+                "max_tokens": 1500,
+                "prompt_template": "foot_traffic_analysis"
+            }
+        },
+        {
+            "name": "recommendation_generation",
+            "type": "llm",
+            "config": {
+                "model": "gpt-4",
+                "temperature": 0.7,
+                "max_tokens": 1000,
+                "prompt_template": "foot_traffic_recommendations"
+            }
+        },
+        {
+            "name": "staffing_optimization",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "custom",
+                        "function": "calculate_staffing_needs",
+                        "parameters": {
+                            "threshold": 30,
+                            "staff_ratio": 0.05
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "report_generation",
+            "type": "output",
+            "config": {
+                "format": "json",
+                "template": {
+                    "analysis": "{insight_generation.output.analysis}",
+                    "recommendations": "{recommendation_generation.output.recommendations}",
+                    "key_findings": "{insight_generation.output.key_findings}",
+                    "peak_times": "{insight_generation.output.peak_times}",
+                    "slow_times": "{insight_generation.output.slow_times}",
+                    "staffing_recommendations": "{staffing_optimization.output}"
+                }
+            }
+        }
+    ],
+    "input_schema": {
+        "restaurant_id": "str",
+        "timeframe": "str",
+        "traffic_data": "list"
+    },
+    "output_schema": {
+        "analysis": "str",
+        "recommendations": "list",
+        "key_findings": "list",
+        "peak_times": "dict",
+        "slow_times": "dict",
+        "staffing_recommendations": "dict"
+    }
+} 

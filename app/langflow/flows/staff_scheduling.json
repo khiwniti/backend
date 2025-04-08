@@ -1,0 +1,344 @@
+{
+    "name": "staff_scheduling",
+    "description": "Optimizes staff scheduling based on historical traffic patterns, staff capabilities, and business constraints",
+    "version": "1.0.0",
+    "steps": [
+        {
+            "name": "data_preparation",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "filter",
+                        "field": "date",
+                        "operation": "range",
+                        "parameters": {
+                            "start": "{input.start_date}",
+                            "end": "{input.end_date}"
+                        }
+                    },
+                    {
+                        "type": "join",
+                        "with": "employees",
+                        "on": "employee_id",
+                        "fields": ["name", "role", "hourly_rate", "skills", "max_hours_per_week", "availability", "preferences"]
+                    },
+                    {
+                        "type": "join",
+                        "with": "sales_data",
+                        "on": ["date", "hour", "restaurant_id"],
+                        "fields": ["customer_count", "revenue"]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "traffic_pattern_analysis",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "aggregation",
+                        "group_by": ["day_of_week", "hour"],
+                        "aggregations": [
+                            {
+                                "field": "customer_count",
+                                "operation": "avg",
+                                "as": "avg_customers"
+                            },
+                            {
+                                "field": "revenue",
+                                "operation": "avg",
+                                "as": "avg_revenue"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "normalization",
+                        "field": "avg_customers",
+                        "method": "min_max",
+                        "as": "normalized_traffic"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "staffing_requirements",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "create_feature",
+                        "name": "required_staff",
+                        "expression": "ceil(avg_customers / {input.customers_per_staff})"
+                    },
+                    {
+                        "type": "create_feature",
+                        "name": "required_chefs",
+                        "expression": "ceil(required_staff * 0.3)"
+                    },
+                    {
+                        "type": "create_feature",
+                        "name": "required_servers",
+                        "expression": "ceil(required_staff * 0.5)"
+                    },
+                    {
+                        "type": "create_feature",
+                        "name": "required_support",
+                        "expression": "required_staff - required_chefs - required_servers"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "employee_availability_processing",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "explode",
+                        "field": "availability",
+                        "as": "available_slot"
+                    },
+                    {
+                        "type": "extract",
+                        "field": "available_slot",
+                        "extractions": [
+                            {
+                                "field": "day_of_week",
+                                "as": "available_day"
+                            },
+                            {
+                                "field": "start_time",
+                                "as": "start_hour"
+                            },
+                            {
+                                "field": "end_time",
+                                "as": "end_hour"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "employee_preferences_processing",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "explode",
+                        "field": "preferences",
+                        "as": "preference"
+                    },
+                    {
+                        "type": "extract",
+                        "field": "preference",
+                        "extractions": [
+                            {
+                                "field": "type",
+                                "as": "preference_type"
+                            },
+                            {
+                                "field": "value",
+                                "as": "preference_value"
+                            },
+                            {
+                                "field": "weight",
+                                "as": "preference_weight"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "historical_performance_analysis",
+            "type": "ml",
+            "config": {
+                "operation": "employee_performance_scoring",
+                "metrics": ["efficiency", "customer_satisfaction", "teamwork"],
+                "group_by": ["employee_id", "role"],
+                "output_field": "performance_score"
+            }
+        },
+        {
+            "name": "schedule_optimization",
+            "type": "optimization",
+            "config": {
+                "algorithm": "linear_programming",
+                "objective": "minimize_cost",
+                "constraints": [
+                    {
+                        "type": "coverage",
+                        "description": "All required staff positions must be filled",
+                        "field": "role",
+                        "requirements": "{staffing_requirements.output}"
+                    },
+                    {
+                        "type": "max_hours",
+                        "description": "Employees cannot exceed their maximum hours per week",
+                        "field": "max_hours_per_week"
+                    },
+                    {
+                        "type": "availability",
+                        "description": "Employees can only be scheduled during their available hours",
+                        "field": "available_slot"
+                    },
+                    {
+                        "type": "skills",
+                        "description": "Employees must have the required skills for their assigned role",
+                        "field": "skills"
+                    },
+                    {
+                        "type": "legal",
+                        "description": "Employees must have adequate rest periods between shifts",
+                        "min_hours_between_shifts": 10
+                    }
+                ],
+                "soft_constraints": [
+                    {
+                        "type": "preferences",
+                        "description": "Try to accommodate employee preferences",
+                        "weight": 0.7
+                    },
+                    {
+                        "type": "consistency",
+                        "description": "Prefer consistent schedules week to week",
+                        "weight": 0.5
+                    },
+                    {
+                        "type": "performance",
+                        "description": "Prefer higher-performing employees during peak hours",
+                        "weight": 0.8
+                    }
+                ]
+            }
+        },
+        {
+            "name": "schedule_validation",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "check_constraints",
+                        "constraints": [
+                            {
+                                "name": "no_scheduling_conflicts",
+                                "condition": "NOT EXISTS (SELECT 1 FROM schedule s1, schedule s2 WHERE s1.employee_id = s2.employee_id AND s1.date = s2.date AND s1.shift_id != s2.shift_id AND s1.start_time < s2.end_time AND s1.end_time > s2.start_time)"
+                            },
+                            {
+                                "name": "adequate_rest_periods",
+                                "condition": "NOT EXISTS (SELECT 1 FROM schedule s1, schedule s2 WHERE s1.employee_id = s2.employee_id AND s1.date = DATE_ADD(s2.date, INTERVAL 1 DAY) AND (s1.start_time - s2.end_time) < 10)"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "schedule_analysis",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "aggregation",
+                        "group_by": ["employee_id", "name"],
+                        "aggregations": [
+                            {
+                                "field": "shift_duration",
+                                "operation": "sum",
+                                "as": "total_hours"
+                            },
+                            {
+                                "field": "shift_duration * hourly_rate",
+                                "operation": "sum",
+                                "as": "total_cost"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "aggregation",
+                        "group_by": ["date", "day_of_week"],
+                        "aggregations": [
+                            {
+                                "field": "total_cost",
+                                "operation": "sum",
+                                "as": "daily_labor_cost"
+                            },
+                            {
+                                "field": "avg_revenue",
+                                "operation": "sum",
+                                "as": "estimated_revenue"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "create_feature",
+                        "name": "labor_cost_percentage",
+                        "expression": "(daily_labor_cost / estimated_revenue) * 100"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "schedule_insights",
+            "type": "llm",
+            "config": {
+                "model": "gpt-4",
+                "temperature": 0.3,
+                "max_tokens": 1000,
+                "prompt_template": "schedule_analysis_insights",
+                "context": {
+                    "schedule": "{schedule_optimization.output.schedule}",
+                    "schedule_analysis": "{schedule_analysis.output}",
+                    "schedule_validation": "{schedule_validation.output}",
+                    "traffic_patterns": "{traffic_pattern_analysis.output}",
+                    "constraints": "{input.constraints}"
+                }
+            }
+        },
+        {
+            "name": "report_generation",
+            "type": "output",
+            "config": {
+                "format": "json",
+                "template": {
+                    "schedule": "{schedule_optimization.output.schedule}",
+                    "employee_hours": "{schedule_analysis.output.employee_hours}",
+                    "labor_costs": {
+                        "total": "{schedule_analysis.output.total_labor_cost}",
+                        "by_day": "{schedule_analysis.output.daily_labor_cost}",
+                        "by_role": "{schedule_analysis.output.role_labor_cost}",
+                        "labor_cost_percentage": "{schedule_analysis.output.labor_cost_percentage}"
+                    },
+                    "insights": "{schedule_insights.output.insights}",
+                    "potential_issues": "{schedule_validation.output.issues}",
+                    "schedule_quality_score": "{schedule_optimization.output.score}",
+                    "employee_satisfaction_estimate": "{schedule_optimization.output.satisfaction_score}"
+                }
+            }
+        }
+    ],
+    "input_schema": {
+        "restaurant_id": "str",
+        "start_date": "date",
+        "end_date": "date",
+        "customers_per_staff": "int",
+        "constraints": {
+            "max_labor_cost_percentage": "float",
+            "min_staff_per_shift": "int",
+            "max_consecutive_days": "int",
+            "require_experience_during_peak": "bool"
+        }
+    },
+    "output_schema": {
+        "schedule": "list",
+        "employee_hours": "dict",
+        "labor_costs": "dict",
+        "insights": "list",
+        "potential_issues": "list",
+        "schedule_quality_score": "float",
+        "employee_satisfaction_estimate": "float"
+    }
+} 

@@ -1,0 +1,166 @@
+{
+    "name": "customer_satisfaction_analysis",
+    "description": "Analyzes customer feedback and reviews to derive insights and improvement areas",
+    "version": "1.0.0",
+    "steps": [
+        {
+            "name": "data_preparation",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "filter",
+                        "field": "date",
+                        "operation": "range",
+                        "parameters": {
+                            "start": "{input.start_date}",
+                            "end": "{input.end_date}"
+                        }
+                    },
+                    {
+                        "type": "clean",
+                        "operations": [
+                            "remove_duplicates",
+                            "handle_missing_values"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "sentiment_analysis",
+            "type": "nlp",
+            "config": {
+                "operation": "sentiment",
+                "input_field": "review_text",
+                "output_field": "sentiment_score",
+                "model": "distilbert-base-uncased-finetuned-sst-2-english"
+            }
+        },
+        {
+            "name": "topic_extraction",
+            "type": "nlp",
+            "config": {
+                "operation": "topic_modeling",
+                "input_field": "review_text",
+                "output_field": "topics",
+                "num_topics": 5,
+                "model": "lda"
+            }
+        },
+        {
+            "name": "keyword_extraction",
+            "type": "nlp",
+            "config": {
+                "operation": "keyword_extraction",
+                "input_field": "review_text",
+                "output_field": "keywords",
+                "max_keywords": 10
+            }
+        },
+        {
+            "name": "feedback_categorization",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "categorize",
+                        "field": "feedback_category",
+                        "conditions": [
+                            {
+                                "condition": "sentiment_score < 0.3",
+                                "value": "negative"
+                            },
+                            {
+                                "condition": "sentiment_score >= 0.3 && sentiment_score < 0.7",
+                                "value": "neutral"
+                            },
+                            {
+                                "condition": "sentiment_score >= 0.7",
+                                "value": "positive"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "trend_analysis",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "time_series",
+                        "field": "sentiment_score",
+                        "group_by": "date",
+                        "operation": "avg",
+                        "window": 7
+                    }
+                ]
+            }
+        },
+        {
+            "name": "insight_generation",
+            "type": "llm",
+            "config": {
+                "model": "llama2",
+                "temperature": 0.5,
+                "max_tokens": 1500,
+                "prompt_template": "customer_feedback_analysis",
+                "context": {
+                    "sentiment_analysis": "{sentiment_analysis.output}",
+                    "topics": "{topic_extraction.output}",
+                    "keywords": "{keyword_extraction.output}",
+                    "trend_data": "{trend_analysis.output}"
+                }
+            }
+        },
+        {
+            "name": "recommendation_generation",
+            "type": "llm",
+            "config": {
+                "model": "llama2",
+                "temperature": 0.7,
+                "max_tokens": 1000,
+                "prompt_template": "customer_satisfaction_recommendations",
+                "context": {
+                    "insights": "{insight_generation.output}",
+                    "sentiment_categories": "{feedback_categorization.output}"
+                }
+            }
+        },
+        {
+            "name": "report_generation",
+            "type": "output",
+            "config": {
+                "format": "json",
+                "template": {
+                    "analysis": "{insight_generation.output.analysis}",
+                    "recommendations": "{recommendation_generation.output.recommendations}",
+                    "sentiment_summary": {
+                        "positive_percentage": "{feedback_categorization.output.positive_percentage}",
+                        "neutral_percentage": "{feedback_categorization.output.neutral_percentage}",
+                        "negative_percentage": "{feedback_categorization.output.negative_percentage}"
+                    },
+                    "top_topics": "{topic_extraction.output.topics}",
+                    "key_terms": "{keyword_extraction.output.keywords}",
+                    "sentiment_trend": "{trend_analysis.output.trend}"
+                }
+            }
+        }
+    ],
+    "input_schema": {
+        "restaurant_id": "str",
+        "start_date": "date",
+        "end_date": "date",
+        "review_source": "str"
+    },
+    "output_schema": {
+        "analysis": "str",
+        "recommendations": "list",
+        "sentiment_summary": "dict",
+        "top_topics": "list",
+        "key_terms": "list",
+        "sentiment_trend": "list"
+    }
+} 

@@ -1,0 +1,290 @@
+{
+    "name": "menu_optimization",
+    "description": "Analyzes menu performance and provides recommendations for menu optimization based on sales data, costs, and customer preferences",
+    "version": "1.0.0",
+    "steps": [
+        {
+            "name": "data_preparation",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "filter",
+                        "field": "date",
+                        "operation": "range",
+                        "parameters": {
+                            "start": "{input.start_date}",
+                            "end": "{input.end_date}"
+                        }
+                    },
+                    {
+                        "type": "join",
+                        "with": "menu_items",
+                        "on": "menu_item_id",
+                        "fields": ["name", "category", "price", "cost", "description", "ingredients"]
+                    },
+                    {
+                        "type": "join",
+                        "with": "customer_reviews",
+                        "on": ["menu_item_id", "restaurant_id"],
+                        "fields": ["rating", "review_text"]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "sales_analysis",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "aggregation",
+                        "group_by": ["menu_item_id", "name", "category"],
+                        "aggregations": [
+                            {
+                                "field": "quantity",
+                                "operation": "sum",
+                                "as": "total_sales"
+                            },
+                            {
+                                "field": "quantity * price",
+                                "operation": "sum",
+                                "as": "total_revenue"
+                            },
+                            {
+                                "field": "quantity * cost",
+                                "operation": "sum",
+                                "as": "total_cost"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "create_feature",
+                        "name": "profit",
+                        "expression": "total_revenue - total_cost"
+                    },
+                    {
+                        "type": "create_feature",
+                        "name": "profit_margin",
+                        "expression": "profit / total_revenue"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "popularity_ranking",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "rank",
+                        "field": "total_sales",
+                        "order": "desc",
+                        "as": "popularity_rank",
+                        "group_by": "category"
+                    },
+                    {
+                        "type": "percentile",
+                        "field": "total_sales",
+                        "as": "popularity_percentile",
+                        "group_by": "category"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "profitability_ranking",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "rank",
+                        "field": "profit",
+                        "order": "desc",
+                        "as": "profit_rank",
+                        "group_by": "category"
+                    },
+                    {
+                        "type": "percentile",
+                        "field": "profit_margin",
+                        "as": "profit_margin_percentile",
+                        "group_by": "category"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "sentiment_analysis",
+            "type": "nlp",
+            "config": {
+                "operation": "sentiment_analysis",
+                "model": "distilbert-base-uncased-finetuned-sst-2-english",
+                "field": "review_text",
+                "group_by": ["menu_item_id", "name"]
+            }
+        },
+        {
+            "name": "menu_engineering",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "categorize",
+                        "name": "menu_category",
+                        "conditions": [
+                            {
+                                "condition": "popularity_percentile >= 0.7 AND profit_margin_percentile >= 0.7",
+                                "value": "Star"
+                            },
+                            {
+                                "condition": "popularity_percentile >= 0.7 AND profit_margin_percentile < 0.7",
+                                "value": "Plow Horse"
+                            },
+                            {
+                                "condition": "popularity_percentile < 0.7 AND profit_margin_percentile >= 0.7",
+                                "value": "Puzzle"
+                            },
+                            {
+                                "condition": "popularity_percentile < 0.7 AND profit_margin_percentile < 0.7",
+                                "value": "Dog"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "cross_selling_analysis",
+            "type": "ml",
+            "config": {
+                "operation": "association_rules",
+                "algorithm": "apriori",
+                "transaction_field": "order_id",
+                "item_field": "menu_item_id",
+                "parameters": {
+                    "min_support": 0.01,
+                    "min_confidence": 0.5,
+                    "min_lift": 1.0
+                }
+            }
+        },
+        {
+            "name": "ingredient_analysis",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "explode",
+                        "field": "ingredients",
+                        "as": "ingredient"
+                    },
+                    {
+                        "type": "aggregation",
+                        "group_by": ["ingredient"],
+                        "aggregations": [
+                            {
+                                "field": "menu_item_id",
+                                "operation": "count_distinct",
+                                "as": "item_count"
+                            },
+                            {
+                                "field": "profit",
+                                "operation": "avg",
+                                "as": "avg_profit"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "seasonal_trend_analysis",
+            "type": "time_series",
+            "config": {
+                "operation": "seasonal_decompose",
+                "field": "total_sales",
+                "group_by": ["menu_item_id", "name", "category"],
+                "time_field": "date",
+                "parameters": {
+                    "period": 30,
+                    "model": "additive"
+                }
+            }
+        },
+        {
+            "name": "price_elasticity",
+            "type": "statistics",
+            "config": {
+                "operation": "price_elasticity",
+                "price_field": "price",
+                "quantity_field": "quantity",
+                "group_by": ["menu_item_id", "name"]
+            }
+        },
+        {
+            "name": "menu_recommendations",
+            "type": "llm",
+            "config": {
+                "model": "gpt-4",
+                "temperature": 0.3,
+                "max_tokens": 1500,
+                "prompt_template": "menu_optimization_recommendations",
+                "context": {
+                    "menu_engineering": "{menu_engineering.output}",
+                    "sales_analysis": "{sales_analysis.output}",
+                    "sentiment_analysis": "{sentiment_analysis.output}",
+                    "cross_selling": "{cross_selling_analysis.output}",
+                    "price_elasticity": "{price_elasticity.output}",
+                    "seasonal_trends": "{seasonal_trend_analysis.output}",
+                    "ingredients": "{ingredient_analysis.output}"
+                }
+            }
+        },
+        {
+            "name": "price_optimization",
+            "type": "ml",
+            "config": {
+                "operation": "price_optimization",
+                "elasticity_data": "{price_elasticity.output}",
+                "cost_data": "{sales_analysis.output.total_cost}",
+                "objective": "maximize_profit",
+                "constraints": {
+                    "max_price_increase": 0.15,
+                    "max_price_decrease": 0.1
+                }
+            }
+        },
+        {
+            "name": "report_generation",
+            "type": "output",
+            "config": {
+                "format": "json",
+                "template": {
+                    "menu_engineering_matrix": "{menu_engineering.output}",
+                    "item_recommendations": "{menu_recommendations.output.recommendations}",
+                    "price_recommendations": "{price_optimization.output.optimal_prices}",
+                    "cross_selling_opportunities": "{cross_selling_analysis.output.rules}",
+                    "seasonal_recommendations": "{menu_recommendations.output.seasonal_recommendations}",
+                    "low_performers": "{menu_engineering.output.items[menu_category='Dog']}",
+                    "high_performers": "{menu_engineering.output.items[menu_category='Star']}",
+                    "sentiment_by_item": "{sentiment_analysis.output.sentiment_scores}"
+                }
+            }
+        }
+    ],
+    "input_schema": {
+        "restaurant_id": "str",
+        "start_date": "date",
+        "end_date": "date"
+    },
+    "output_schema": {
+        "menu_engineering_matrix": "dict",
+        "item_recommendations": "list",
+        "price_recommendations": "dict",
+        "cross_selling_opportunities": "list",
+        "seasonal_recommendations": "list",
+        "low_performers": "list",
+        "high_performers": "list",
+        "sentiment_by_item": "dict"
+    }
+} 

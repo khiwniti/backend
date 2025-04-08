@@ -1,0 +1,330 @@
+{
+    "name": "supply_chain_optimization",
+    "description": "Optimizes inventory management and supplier relationships to minimize costs and reduce waste while ensuring adequate stock levels",
+    "version": "1.0.0",
+    "steps": [
+        {
+            "name": "data_preparation",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "filter",
+                        "field": "date",
+                        "operation": "range",
+                        "parameters": {
+                            "start": "{input.start_date}",
+                            "end": "{input.end_date}"
+                        }
+                    },
+                    {
+                        "type": "join",
+                        "with": "inventory",
+                        "on": ["ingredient_id", "restaurant_id"],
+                        "fields": ["name", "current_stock", "unit", "min_stock_level", "max_stock_level", "shelf_life", "storage_conditions"]
+                    },
+                    {
+                        "type": "join",
+                        "with": "suppliers",
+                        "on": "supplier_id",
+                        "fields": ["supplier_name", "lead_time", "reliability_score", "cost_per_unit", "minimum_order_quantity", "delivery_days"]
+                    },
+                    {
+                        "type": "join",
+                        "with": "sales_data",
+                        "on": ["date", "restaurant_id"],
+                        "fields": ["items_sold"]
+                    },
+                    {
+                        "type": "join",
+                        "with": "menu_items",
+                        "on": "menu_item_id",
+                        "fields": ["item_name", "ingredients", "portions"]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "ingredient_usage_analysis",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "explode",
+                        "field": "ingredients",
+                        "as": "ingredient_detail"
+                    },
+                    {
+                        "type": "extract",
+                        "field": "ingredient_detail",
+                        "extractions": [
+                            {
+                                "field": "ingredient_id",
+                                "as": "used_ingredient_id"
+                            },
+                            {
+                                "field": "quantity",
+                                "as": "quantity_per_item"
+                            },
+                            {
+                                "field": "unit",
+                                "as": "ingredient_unit"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "create_feature",
+                        "name": "total_ingredient_used",
+                        "expression": "items_sold * quantity_per_item"
+                    },
+                    {
+                        "type": "aggregation",
+                        "group_by": ["date", "used_ingredient_id", "ingredient_unit"],
+                        "aggregations": [
+                            {
+                                "field": "total_ingredient_used",
+                                "operation": "sum",
+                                "as": "daily_usage"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "demand_forecasting",
+            "type": "ml",
+            "config": {
+                "model": "time_series_forecasting",
+                "algorithm": "prophet",
+                "parameters": {
+                    "forecast_periods": 14,
+                    "seasonality_mode": "multiplicative",
+                    "holidays": true
+                },
+                "group_by": ["used_ingredient_id", "restaurant_id"],
+                "target": "daily_usage",
+                "features": ["date", "day_of_week", "is_weekend", "is_holiday"],
+                "output_field": "forecasted_usage"
+            }
+        },
+        {
+            "name": "inventory_status_analysis",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "aggregation",
+                        "group_by": ["ingredient_id", "restaurant_id"],
+                        "aggregations": [
+                            {
+                                "field": "current_stock",
+                                "operation": "sum",
+                                "as": "total_current_stock"
+                            },
+                            {
+                                "field": "forecasted_usage",
+                                "operation": "sum",
+                                "as": "total_forecasted_usage"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "create_feature",
+                        "name": "days_until_stockout",
+                        "expression": "IF(total_forecasted_usage > 0, total_current_stock / (total_forecasted_usage / 14), 90)"
+                    },
+                    {
+                        "type": "create_feature",
+                        "name": "reorder_needed",
+                        "expression": "days_until_stockout < lead_time + {input.safety_days}"
+                    },
+                    {
+                        "type": "create_feature",
+                        "name": "recommended_order_quantity",
+                        "expression": "MAX(minimum_order_quantity, CEIL((total_forecasted_usage * (lead_time + {input.safety_days}) / 14) - total_current_stock))"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "supplier_optimization",
+            "type": "optimization",
+            "config": {
+                "algorithm": "linear_programming",
+                "objective": "minimize_cost",
+                "constraints": [
+                    {
+                        "type": "minimum_order",
+                        "field": "minimum_order_quantity"
+                    },
+                    {
+                        "type": "delivery_schedule",
+                        "field": "delivery_days"
+                    },
+                    {
+                        "type": "reliability",
+                        "min_score": "{input.min_supplier_reliability}"
+                    },
+                    {
+                        "type": "supply_capacity",
+                        "field": "max_supply_capacity"
+                    }
+                ],
+                "group_by": ["ingredient_id", "restaurant_id"],
+                "decision_variables": [
+                    {
+                        "name": "supplier_selection",
+                        "type": "binary"
+                    },
+                    {
+                        "name": "order_quantity",
+                        "type": "integer",
+                        "min": 0
+                    }
+                ],
+                "output_fields": ["selected_supplier", "order_quantity", "total_cost"]
+            }
+        },
+        {
+            "name": "waste_analysis",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "join",
+                        "with": "waste_records",
+                        "on": ["ingredient_id", "restaurant_id"],
+                        "fields": ["waste_quantity", "waste_reason", "waste_date"]
+                    },
+                    {
+                        "type": "aggregation",
+                        "group_by": ["ingredient_id", "restaurant_id"],
+                        "aggregations": [
+                            {
+                                "field": "waste_quantity",
+                                "operation": "sum",
+                                "as": "total_waste"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "create_feature",
+                        "name": "waste_percentage",
+                        "expression": "(total_waste / (total_current_stock + total_waste)) * 100"
+                    },
+                    {
+                        "type": "classification",
+                        "field": "waste_percentage",
+                        "bins": [0, 5, 15, 100],
+                        "labels": ["Low", "Medium", "High"],
+                        "as": "waste_level"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "order_consolidation",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "aggregation",
+                        "group_by": ["selected_supplier", "restaurant_id"],
+                        "aggregations": [
+                            {
+                                "field": "order_quantity * cost_per_unit",
+                                "operation": "sum",
+                                "as": "supplier_order_total"
+                            },
+                            {
+                                "field": "ingredient_id",
+                                "operation": "count_distinct",
+                                "as": "ingredient_count"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "create_feature",
+                        "name": "volume_discount",
+                        "expression": "IF(supplier_order_total > {input.volume_discount_threshold}, supplier_order_total * {input.volume_discount_rate}, 0)"
+                    },
+                    {
+                        "type": "create_feature",
+                        "name": "final_order_cost",
+                        "expression": "supplier_order_total - volume_discount"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "inventory_recommendations",
+            "type": "llm",
+            "config": {
+                "model": "llama2",
+                "temperature": 0.3,
+                "max_tokens": 1000,
+                "prompt_template": "inventory_optimization_recommendations",
+                "context": {
+                    "inventory_status": "{inventory_status_analysis.output}",
+                    "supplier_recommendations": "{supplier_optimization.output}",
+                    "waste_analysis": "{waste_analysis.output}",
+                    "demand_forecast": "{demand_forecasting.output}",
+                    "constraints": "{input.constraints}"
+                }
+            }
+        },
+        {
+            "name": "report_generation",
+            "type": "output",
+            "config": {
+                "format": "json",
+                "template": {
+                    "order_recommendations": {
+                        "by_supplier": "{order_consolidation.output.by_supplier}",
+                        "by_ingredient": "{supplier_optimization.output.by_ingredient}"
+                    },
+                    "inventory_status": {
+                        "current_levels": "{inventory_status_analysis.output.current_levels}",
+                        "forecasted_usage": "{demand_forecasting.output.forecasted_usage}",
+                        "days_until_stockout": "{inventory_status_analysis.output.days_until_stockout}"
+                    },
+                    "waste_metrics": {
+                        "waste_by_ingredient": "{waste_analysis.output.by_ingredient}",
+                        "waste_reduction_opportunities": "{waste_analysis.output.reduction_opportunities}"
+                    },
+                    "cost_analysis": {
+                        "total_order_cost": "{order_consolidation.output.total_cost}",
+                        "savings_from_volume_discounts": "{order_consolidation.output.total_discount}",
+                        "projected_monthly_spend": "{order_consolidation.output.projected_monthly_spend}"
+                    },
+                    "insights": "{inventory_recommendations.output.insights}",
+                    "actions": "{inventory_recommendations.output.recommended_actions}"
+                }
+            }
+        }
+    ],
+    "input_schema": {
+        "restaurant_id": "str",
+        "start_date": "date",
+        "end_date": "date",
+        "safety_days": "int",
+        "min_supplier_reliability": "float",
+        "volume_discount_threshold": "float",
+        "volume_discount_rate": "float",
+        "constraints": {
+            "max_order_budget": "float",
+            "prioritize_local_suppliers": "bool",
+            "storage_capacity_limited": "bool",
+            "minimize_different_suppliers": "bool"
+        }
+    },
+    "output_schema": {
+        "order_recommendations": "dict",
+        "inventory_status": "dict",
+        "waste_metrics": "dict",
+        "cost_analysis": "dict",
+        "insights": "list",
+        "actions": "list"
+    }
+} 

@@ -1,0 +1,76 @@
+{
+    "name": "restaurant_analysis",
+    "description": "Analyzes restaurant performance and provides insights",
+    "version": "1.0.0",
+    "steps": [
+        {
+            "name": "data_collection",
+            "type": "data_source",
+            "config": {
+                "source": "database",
+                "query": "SELECT * FROM analytics WHERE restaurant_id = {restaurant_id} AND timestamp >= {start_date} AND timestamp <= {end_date}"
+            }
+        },
+        {
+            "name": "data_processing",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "aggregate",
+                        "field": "value",
+                        "operation": "mean",
+                        "group_by": ["metric_type", "timestamp"]
+                    },
+                    {
+                        "type": "trend_analysis",
+                        "field": "value",
+                        "window": 7
+                    }
+                ]
+            }
+        },
+        {
+            "name": "insight_generation",
+            "type": "llm",
+            "config": {
+                "model": "gpt-4",
+                "temperature": 0.7,
+                "max_tokens": 2000,
+                "prompt_template": "restaurant_analysis"
+            }
+        },
+        {
+            "name": "recommendation_generation",
+            "type": "llm",
+            "config": {
+                "model": "gpt-4",
+                "temperature": 0.7,
+                "max_tokens": 1000,
+                "prompt_template": "restaurant_recommendations"
+            }
+        },
+        {
+            "name": "report_generation",
+            "type": "output",
+            "config": {
+                "format": "json",
+                "template": {
+                    "analysis": "{insight_generation.output}",
+                    "recommendations": "{recommendation_generation.output}",
+                    "metrics": "{data_processing.output}"
+                }
+            }
+        }
+    ],
+    "input_schema": {
+        "restaurant_id": "str",
+        "timeframe": "str",
+        "metrics": "list"
+    },
+    "output_schema": {
+        "analysis": "str",
+        "recommendations": "list",
+        "metrics": "dict"
+    }
+} 

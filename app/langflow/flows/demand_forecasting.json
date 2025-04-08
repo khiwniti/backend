@@ -1,0 +1,233 @@
+{
+    "name": "demand_forecasting",
+    "description": "Forecasts future demand for menu items based on historical sales data and external factors",
+    "version": "1.0.0",
+    "steps": [
+        {
+            "name": "data_preparation",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "filter",
+                        "field": "date",
+                        "operation": "range",
+                        "parameters": {
+                            "start": "{input.start_date}",
+                            "end": "{input.end_date}"
+                        }
+                    },
+                    {
+                        "type": "aggregation",
+                        "group_by": ["date", "menu_item_id"],
+                        "aggregations": [
+                            {
+                                "field": "quantity",
+                                "operation": "sum",
+                                "as": "daily_sales"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "time_features",
+                        "field": "date",
+                        "features": [
+                            "day_of_week",
+                            "month",
+                            "is_weekend",
+                            "is_holiday"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "seasonal_decomposition",
+            "type": "time_series",
+            "config": {
+                "operation": "seasonal_decompose",
+                "field": "daily_sales",
+                "group_by": "menu_item_id",
+                "parameters": {
+                    "period": 7,
+                    "model": "additive"
+                }
+            }
+        },
+        {
+            "name": "trend_analysis",
+            "type": "time_series",
+            "config": {
+                "operation": "trend_analysis",
+                "field": "daily_sales",
+                "group_by": "menu_item_id",
+                "window": 14
+            }
+        },
+        {
+            "name": "external_factors_integration",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "join",
+                        "with": "weather_data",
+                        "on": "date",
+                        "fields": ["temperature", "precipitation", "weather_condition"]
+                    },
+                    {
+                        "type": "join",
+                        "with": "events_calendar",
+                        "on": "date",
+                        "fields": ["event_type", "event_scale"]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "feature_engineering",
+            "type": "transformation",
+            "config": {
+                "operations": [
+                    {
+                        "type": "create_feature",
+                        "name": "lag_sales",
+                        "expression": "daily_sales.shift(1)",
+                        "group_by": "menu_item_id"
+                    },
+                    {
+                        "type": "create_feature",
+                        "name": "rolling_avg_sales",
+                        "expression": "daily_sales.rolling(window=7).mean()",
+                        "group_by": "menu_item_id"
+                    },
+                    {
+                        "type": "create_feature",
+                        "name": "weather_impact",
+                        "expression": "case when temperature > 30 then 'hot' when temperature < 10 then 'cold' else 'moderate' end"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "model_training",
+            "type": "ml",
+            "config": {
+                "operation": "train",
+                "model_type": "time_series",
+                "algorithm": "prophet",
+                "target": "daily_sales",
+                "features": [
+                    "day_of_week",
+                    "month",
+                    "is_weekend",
+                    "is_holiday",
+                    "temperature",
+                    "precipitation",
+                    "event_type",
+                    "event_scale",
+                    "lag_sales",
+                    "rolling_avg_sales",
+                    "weather_impact"
+                ],
+                "parameters": {
+                    "growth": "linear",
+                    "seasonality_mode": "multiplicative",
+                    "yearly_seasonality": true,
+                    "weekly_seasonality": true,
+                    "daily_seasonality": false
+                },
+                "train_test_split": {
+                    "test_size": 0.2,
+                    "random_state": 42
+                }
+            }
+        },
+        {
+            "name": "forecast_generation",
+            "type": "ml",
+            "config": {
+                "operation": "predict",
+                "model": "{model_training.output.model}",
+                "horizon": "{input.forecast_days}",
+                "frequency": "D",
+                "include_history": true
+            }
+        },
+        {
+            "name": "uncertainty_quantification",
+            "type": "statistics",
+            "config": {
+                "operations": [
+                    {
+                        "type": "confidence_interval",
+                        "field": "forecast",
+                        "level": 0.95
+                    },
+                    {
+                        "type": "prediction_intervals",
+                        "field": "forecast",
+                        "levels": [0.5, 0.8, 0.95]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "anomaly_detection",
+            "type": "ml",
+            "config": {
+                "operation": "detect_anomalies",
+                "algorithm": "isolation_forest",
+                "target": "daily_sales",
+                "sensitivity": 0.05
+            }
+        },
+        {
+            "name": "insight_generation",
+            "type": "llm",
+            "config": {
+                "model": "gpt-4",
+                "temperature": 0.5,
+                "max_tokens": 1200,
+                "prompt_template": "demand_forecasting_insights",
+                "context": {
+                    "forecast": "{forecast_generation.output}",
+                    "seasonal_patterns": "{seasonal_decomposition.output}",
+                    "trends": "{trend_analysis.output}",
+                    "anomalies": "{anomaly_detection.output}"
+                }
+            }
+        },
+        {
+            "name": "report_generation",
+            "type": "output",
+            "config": {
+                "format": "json",
+                "template": {
+                    "forecast_data": "{forecast_generation.output.forecast}",
+                    "confidence_intervals": "{uncertainty_quantification.output.intervals}",
+                    "insights": "{insight_generation.output.insights}",
+                    "trending_items": "{trend_analysis.output.trending_items}",
+                    "seasonal_patterns": "{seasonal_decomposition.output.seasonal_patterns}",
+                    "anomalies": "{anomaly_detection.output.anomalies}",
+                    "accuracy_metrics": "{forecast_generation.output.metrics}"
+                }
+            }
+        }
+    ],
+    "input_schema": {
+        "restaurant_id": "str",
+        "start_date": "date",
+        "end_date": "date",
+        "forecast_days": "int"
+    },
+    "output_schema": {
+        "forecast_data": "dict",
+        "confidence_intervals": "dict",
+        "insights": "list",
+        "trending_items": "list",
+        "seasonal_patterns": "dict",
+        "anomalies": "list",
+        "accuracy_metrics": "dict"
+    }
+} 

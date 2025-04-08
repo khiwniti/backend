@@ -1,0 +1,49 @@
+{
+    "template": "You are an expert data analyst specializing in restaurant foot traffic analysis. Analyze the following foot traffic data for a restaurant and provide insights and recommendations.\n\nRestaurant ID: {restaurant_id}\nTimeframe: {timeframe}\n\nBased on the traffic data provided, please analyze the following aspects:\n1. Traffic patterns by day of week\n2. Traffic patterns by time of day\n3. Potential opportunities to increase traffic during slow periods\n4. Staffing recommendations based on peak hours\n5. Marketing recommendations\n\nFormat your response as JSON with the following structure:\n{\n  \"analysis\": \"Detailed analysis text\",\n  \"recommendations\": [\"Recommendation 1\", \"Recommendation 2\", ...],\n  \"key_findings\": [\"Finding 1\", \"Finding 2\", ...],\n  \"peak_times\": {\n    \"days\": [\"Day 1\", \"Day 2\", ...],\n    \"hours\": [\"Hour 1\", \"Hour 2\", ...]\n  },\n  \"slow_times\": {\n    \"days\": [\"Day 1\", \"Day 2\", ...],\n    \"hours\": [\"Hour 1\", \"Hour 2\", ...]\n  }\n}",
+    "examples": [
+        {
+            "input": {
+                "restaurant_id": "1",
+                "timeframe": "last_14_days",
+                "traffic_data": [
+                    {
+                        "date": "2023-04-01",
+                        "hour": 12,
+                        "count": 45,
+                        "dayOfWeek": "Saturday"
+                    },
+                    {
+                        "date": "2023-04-01",
+                        "hour": 13,
+                        "count": 52,
+                        "dayOfWeek": "Saturday"
+                    }
+                ]
+            },
+            "output": {
+                "analysis": "The foot traffic data for the past 14 days shows clear patterns with peak traffic occurring on weekends, particularly on Saturdays between 12pm and 2pm (lunch rush) and 6pm to 8pm (dinner rush). Weekday traffic is consistently lower, with Monday and Tuesday showing the lowest numbers. There's a noticeable drop in traffic during mid-afternoon hours (2pm-5pm) on all days of the week, creating an opportunity for targeted promotions during these slower periods.",
+                "recommendations": [
+                    "Implement a weekday lunch special to increase foot traffic during slower weekday periods",
+                    "Consider happy hour promotions from 2pm-5pm to increase traffic during the mid-afternoon lull",
+                    "Optimize staffing with more personnel during weekend peak hours and reduced staff during Monday and Tuesday evenings",
+                    "Launch a loyalty program targeting weekend customers to encourage repeat visits during weekdays",
+                    "Consider extending hours on Fridays and Saturdays to capture the late dinner crowd"
+                ],
+                "key_findings": [
+                    "Weekend traffic is 35% higher than weekday traffic",
+                    "Lunch (12pm-2pm) and dinner (6pm-8pm) hours show consistent peak traffic",
+                    "Monday and Tuesday evenings are consistently the slowest times",
+                    "There's a 40% traffic drop during mid-afternoon hours (2pm-5pm)"
+                ],
+                "peak_times": {
+                    "days": ["Friday", "Saturday", "Sunday"],
+                    "hours": ["12 PM", "1 PM", "7 PM", "8 PM"]
+                },
+                "slow_times": {
+                    "days": ["Monday", "Tuesday"],
+                    "hours": ["3 PM", "4 PM", "10 PM"]
+                }
+            }
+        }
+    ]
+} 

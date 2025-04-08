@@ -1,0 +1,37 @@
+{
+    "template": "You are an expert restaurant analyst. Analyze the following restaurant data and provide insights and recommendations.\n\nRestaurant ID: {restaurant_id}\nTimeframe: {timeframe}\nMetrics: {metrics}\n\nPlease provide a detailed analysis including:\n1. Performance trends\n2. Key insights\n3. Actionable recommendations\n4. Risk factors\n5. Opportunities for improvement\n\nFormat your response as JSON with the following structure:\n{\n  \"analysis\": \"Detailed analysis text\",\n  \"recommendations\": [\"Recommendation 1\", \"Recommendation 2\", ...],\n  \"metrics\": {\n    \"metric1\": {\n      \"value\": 123,\n      \"trend\": \"up/down/stable\",\n      \"insight\": \"Insight about this metric\"\n    },\n    ...\n  }\n}",
+    "examples": [
+        {
+            "input": {
+                "restaurant_id": "1",
+                "timeframe": "last_30_days",
+                "metrics": ["foot_traffic", "average_order_value", "customer_satisfaction"]
+            },
+            "output": {
+                "analysis": "The restaurant has shown strong performance in the last 30 days with increasing foot traffic and stable customer satisfaction scores. The average order value has seen a slight decline which may indicate a need for menu optimization.",
+                "recommendations": [
+                    "Implement targeted promotions during off-peak hours to increase foot traffic",
+                    "Review menu pricing strategy to improve average order value",
+                    "Enhance customer service training to maintain high satisfaction scores"
+                ],
+                "metrics": {
+                    "foot_traffic": {
+                        "value": 1500,
+                        "trend": "up",
+                        "insight": "15% increase compared to previous period"
+                    },
+                    "average_order_value": {
+                        "value": 25.50,
+                        "trend": "down",
+                        "insight": "3% decrease, possibly due to seasonal factors"
+                    },
+                    "customer_satisfaction": {
+                        "value": 4.8,
+                        "trend": "stable",
+                        "insight": "Consistently high scores indicating strong service quality"
+                    }
+                }
+            }
+        }
+    ]
+} 
