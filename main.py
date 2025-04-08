@@ -100,17 +100,20 @@ def create_app() -> FastAPI:
 
         app.state.auth_config = AuthConfig(**auth_config)
 
-    # Initialize Cloudflare KV namespaces if running in Cloudflare
-    if os.environ.get("CLOUDFLARE_DEPLOYMENT", "false").lower() == "true":
-        print("Initializing Cloudflare KV namespaces")
-        try:
-            # These will be bound by Cloudflare Workers
-            app.state.FLOW_KV = None  # Will be replaced by Cloudflare
-            app.state.CACHE_KV = None  # Will be replaced by Cloudflare
-        except Exception as e:
-            print(f"Error initializing Cloudflare KV: {e}")
-
+    # Always initialize Cloudflare KV namespaces
+    app.state.FLOW_KV = None  # Will be replaced by Cloudflare
+    app.state.CACHE_KV = None  # Will be replaced by Cloudflare
+    
+    # Configure CORS
+    from app.middleware.cors import configure_cors
+    configure_cors(app)
+    
+    # Import and include routers
+    from app.apis.langflow import router as langflow_router
+    app.include_router(langflow_router, prefix="/api/v1")
+    
     return app
 
 
 app = create_app()
+
